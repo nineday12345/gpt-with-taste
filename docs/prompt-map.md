@@ -6,13 +6,14 @@ The default product is the complete main prompt. One source serves the GPT model
 
 | Source | Reader and placement | Job |
 | --- | --- | --- |
-| [`prompts/main.md`](../prompts/main.md) | The main Codex agent's instruction context | Own the user's result, make decisions, execute or delegate, integrate evidence, and deliver finished work. |
-| [`prompts/sub.md`](../prompts/sub.md) | A delegated agent's instruction context, alongside its actual role and assignment | Own the complete scoped result while preserving role, leaf, tool, support, and write boundaries. |
-| [`prompts/user-steer.md`](../prompts/user-steer.md) | Optional reminder near each submitted user request to the main agent | Reconnect the request to the current goal, make ordinary choices, preserve existing usage, and select reader-useful content. |
-| [`prompts/sub-steer.md`](../prompts/sub-steer.md) | Optional reminder with input to a delegated agent | Continue the scoped assignment, finish local work, and report only real early coordination needs. |
-| [`prompts/agent-steer.md`](../prompts/agent-steer.md) | Optional reminder when the main agent receives a collaborator message or task result | Reconcile evidence and decide before routing only the missing action-changing information. |
+| [`recipe/main.md`](../recipe/main.md) | The main agent's instruction context | Own the user's result, make decisions, execute or delegate, integrate evidence, and deliver finished work. |
+| [`recipe/sub.md`](../recipe/sub.md) | A delegated agent's instruction context, alongside its actual role and assignment | Own the complete scoped result while preserving role, leaf, tool, support, and write boundaries. |
+| [`recipe/independent.md`](../recipe/independent.md) | An independent host invocation without a parent | Apply role-neutral work principles and complete the current assignment. |
+| [`recipe/user-steer.md`](../recipe/user-steer.md) | Optional reminder near each submitted user request to the main agent | Reconnect the request to the current goal, make ordinary choices, preserve existing usage, and select reader-useful content. |
+| [`recipe/sub-steer.md`](../recipe/sub-steer.md) | Optional reminder with input to a delegated agent | Continue the scoped assignment, finish local work, and report only real early coordination needs. |
+| [`recipe/agent-steer.md`](../recipe/agent-steer.md) | Optional reminder when the main agent receives a collaborator message or task result | Reconcile evidence and decide before routing only the missing action-changing information. |
 
-The files are literal English instruction sources. They require no base-prompt placeholder, private path, model alias, or hidden companion file. English source does not fix the response language: the main and subagent prompts explicitly follow the user's latest conversational language, including a switch, while project artifacts follow project conventions and explicit artifact requirements. An explicitly chosen persona overrides the default warm, lively, opinionated voice.
+These are the complete English author sources. [The compiler](authoring.md) generates `dist/<harness>/` and the existing Codex `prompts/` paths from them. Each adapter supplies the harness's native loading and event interfaces; the shared instructions follow the current harness rather than naming another host's tools. English source does not fix the response language: the main and subagent prompts explicitly follow the user's latest conversational language, including a switch, while project artifacts follow project conventions and explicit artifact requirements. An explicitly chosen persona overrides the default warm, lively, opinionated voice.
 
 ## Where the capabilities live
 
@@ -47,15 +48,15 @@ The files are literal English instruction sources. They require no base-prompt p
 
 ## Codex integration decisions
 
-The sources refer to the current Codex tools, schemas, role restrictions, and event behavior rather than naming tools from another host. They do not assume a message wakes or interrupts a recipient, grants approval, or proves consumption. Notification-driven continuation applies when the runtime guarantees completion notifications; waiting follows the supported tool contract and a real dependency. A child resolves its promised dependencies before its final result.
+The Codex adapter retains the existing instruction-file and local-plugin entry points. Shared behavior follows the current runtime's tools, role restrictions, and event semantics. Notification-driven continuation applies when the runtime guarantees completion notifications; waiting follows the supported tool contract and a real dependency. A child resolves its promised dependencies before its final result.
 
 Selecting [optional hooks](install.md#add-optional-per-turn-steering) assembles the single author sources into a local marketplace and installs `gpt-with-taste@gpt-with-taste-local` through the normal Codex plugin CLI. The plugin configures three source-specific routes:
 
-- `UserPromptSubmit`: `user-steer.md` addresses main; a later child turn carrying `agent_id` receives `sub-steer.md`.
-- `SubagentStart`: `sub-steer.md` enters the child alongside its role and task. The session, agent and initial turn IDs suppress the paired first `UserPromptSubmit`, so the child gets one initial reminder.
-- `PostToolUse`: a finite shared name map recognizes `wait_agent`, `multi_agent_v1.wait_agent` and `multi_agent_v1wait_agent`. Main receives `agent-steer.md` when `timed_out` is `false` and the status map contains a `{completed: string}` receipt. The original result stays intact; incomplete, timed-out, not-found, shell/MCP and child-session results select no main reminder.
+- `UserPromptSubmit`: `user-steer.md` addresses main; a child identified by `agent_id` or its recorded child session receives `sub-steer.md`.
+- `SubagentStart`: `sub-steer.md` enters the child alongside its role and task. The child identity and initial turn suppress a matching paired input once. Identity remains available to route later events without assuming parent and child session IDs match.
+- `PostToolUse`: a finite shared map recognizes bare `wait_agent` and dotted/flattened `multi_agent_v1` and `collaboration` names. Main receives `agent-steer.md` for a non-timeout `{completed: string}` status receipt or the current collaboration mailbox wake. The latter asks Main to consume pending input without asserting task completion. Original results stay intact; incomplete, timed-out, not-found, shell/MCP and child-session results select no Main reminder.
 
-`SubagentStop` controls continuation inside the child. Parent follow-ups use the subagent-identified `UserPromptSubmit`; dispatch arguments and automatic completion notifications are left intact. The complete `sub.md` remains available for roles the user chooses.
+`SubagentStop` controls continuation inside the child. Later child inputs are routed only when the client dispatches `UserPromptSubmit`; Codex 0.162.1 native `followup_task` did not dispatch that event in the runtime probe. Dispatch arguments and automatic completion notifications remain intact. The complete `sub.md` remains available for roles the user chooses.
 
 The Windows launcher invokes Node with PowerShell's `&` call operator and reads the official `PLUGIN_ROOT` environment value. Event JSON supplies the consumer and turn identity. Named diagnostics identify missing metadata or source/state failures; optional audit logging never blocks a successful context response. See [installation](install.md#add-optional-per-turn-steering) for setup and trust.
 
